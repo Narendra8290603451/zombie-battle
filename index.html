@@ -1,142 +1,130 @@
-11<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <title>Zombie Battle</title>
 <style>
-body{margin:0;font-family:Arial;background:black;color:white;overflow:hidden}
-button{padding:15px 30px;font-size:20px;border:none;border-radius:10px}
-
-/* Screens */
-.screen{
- position:absolute;top:0;left:0;
- width:100%;height:100%;
- display:flex;flex-direction:column;
- align-items:center;justify-content:center
-}
-
-/* Home */
-#home{background:#000}
-#home h1{font-size:40px;color:red}
-
-/* Level */
-#levels{display:none;background:#111}
-.levelBtn{margin:10px;width:200px}
-
-/* Game */
-#gameScreen{display:none}
+body{margin:0;overflow:hidden;background:black}
 canvas{display:block}
 
 /* UI */
-#ui{position:absolute;top:10px;width:100%;text-align:center}
-#healthBox{width:200px;height:20px;border:2px solid white;margin:auto}
-#health{height:100%;width:100%;background:red}
-
-/* Controls */
-.ctrl{
- position:absolute;bottom:20px;width:60px;height:60px;
- font-size:26px;border-radius:10px
+#ui{
+ position:absolute;
+ top:10px;
+ width:100%;
+ text-align:center;
+ color:white;
+ font-size:18px;
+ z-index:10;
 }
-#up{left:80px;bottom:110px}
-#down{left:80px}
-#left{left:10px}
-#right{left:150px}
+
+button{
+ position:absolute;
+ background:#00ff99;
+ border:none;
+ border-radius:10px;
+ font-size:20px;
+ width:55px;
+ height:55px;
+}
+
+#up{left:70px;bottom:120px}
+#down{left:70px;bottom:20px}
+#left{left:10px;bottom:70px}
+#right{left:130px;bottom:70px}
+
 #fire{
- right:20px;bottom:40px;
- width:80px;height:80px;
- border-radius:50%;background:red;color:white
+ right:20px;
+ bottom:80px;
+ width:80px;
+ height:80px;
+ border-radius:50%;
+ background:red;
+ color:white;
+ font-size:30px;
+}
+
+#gun{
+ right:20px;
+ bottom:170px;
+ width:80px;
+ height:50px;
+ background:#ffaa00;
 }
 </style>
 </head>
 
 <body>
 
-<!-- HOME PAGE -->
-<div id="home" class="screen">
-  <h1>🧟 ZOMBIE BATTLE</h1>
-  <button onclick="openLevels()">START GAME</button>
-</div>
-
-<!-- LEVEL PAGE -->
-<div id="levels" class="screen">
-  <h2>Select Level</h2>
-  <button class="levelBtn" onclick="startGame(1)">Level 1</button>
-  <button class="levelBtn" onclick="startGame(2)">Level 2</button>
-  <button class="levelBtn" onclick="startGame(3)">Level 3</button>
-  <button onclick="goHome()">⬅ Back</button>
-</div>
-
-<!-- GAME PAGE -->
-<div id="gameScreen">
 <div id="ui">
- Level: <span id="levelText">1</span> |
+ Gun: <span id="gunName">Pistol</span> |
+ Level: <span id="level">1</span> |
  Score: <span id="score">0</span>
- <div id="healthBox"><div id="health"></div></div>
 </div>
 
 <canvas id="game"></canvas>
 
-<button class="ctrl" id="up">↑</button>
-<button class="ctrl" id="down">↓</button>
-<button class="ctrl" id="left">←</button>
-<button class="ctrl" id="right">→</button>
-<button class="ctrl" id="fire">🔥</button>
-</div>
+<button id="up">↑</button>
+<button id="down">↓</button>
+<button id="left">←</button>
+<button id="right">→</button>
+<button id="fire">🔥</button>
+<button id="gun">🔫</button>
 
 <script>
-/* Screen control */
-function openLevels(){
- home.style.display="none";
- levels.style.display="flex";
-}
-function goHome(){
- levels.style.display="none";
- home.style.display="flex";
-}
-
-/* Canvas */
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 canvas.width=innerWidth;
 canvas.height=innerHeight;
 
-/* Images */
-const bg=new Image();bg.src="bg.png";
-const playerImg=new Image();playerImg.src="player.png";
-const zombieImg=new Image();zombieImg.src="zombie.png";
-const bulletImg=new Image();bulletImg.src="bullet.png";
+/* IMAGES */
+const bg=new Image(); bg.src="images/bg.png";
+const playerImg=new Image(); playerImg.src="images/player.png";
+const zombieImg=new Image(); zombieImg.src="images/zombie.png";
+const bossImg=new Image(); bossImg.src="images/boss.png";
+const bulletImg=new Image(); bulletImg.src="images/bullet.png";
 
-/* Sounds */
-const fireSound=new Audio("fire.mp3");
-const hitSound=new Audio("hit.mp3");
-const bgMusic=new Audio("bg.mp3");
+/* SOUNDS */
+const bgMusic=new Audio("sounds/bg.mp3");
+const fireSound=new Audio("sounds/fire.mp3");
+const hitSound=new Audio("sounds/hit.mp3");
 bgMusic.loop=true;
 
-/* Game data */
-let player,zombie,bullets,score,level,health,gameRunning=false;
+/* PLAYER */
+let player={x:80,y:300,w:120,h:120};
 
-/* Start game */
-function startGame(lv){
- levels.style.display="none";
- gameScreen.style.display="block";
+/* GUNS */
+const guns=[
+ {name:"Pistol",speed:10,damage:1,spread:1},
+ {name:"Rifle",speed:14,damage:1,spread:1},
+ {name:"Shotgun",speed:9,damage:1,spread:3}
+];
+let gunIndex=0;
 
- level=lv;
- score=0;
- health=100;
- bullets=[];
- document.getElementById("levelText").innerText=level;
- document.getElementById("score").innerText=score;
- document.getElementById("health").style.width="100%";
+/* ZOMBIE */
+let zombie={};
+let score=0,level=1;
+let bullets=[];
 
- player={x:80,y:300,w:200,h:200};
- zombie={x:canvas.width,y:300,w:200,h:200,speed:2+lv};
+function spawnZombie(){
+ zombie.x=canvas.width;
+ zombie.y=Math.random()*(canvas.height-160);
 
- gameRunning=true;
- bgMusic.play();
- gameLoop();
+ if(level%5===0){
+  zombie.boss=true;
+  zombie.w=180; zombie.h=180;
+  zombie.speed=1.5;
+  zombie.health=6;
+ }else{
+  zombie.boss=false;
+  zombie.w=120; zombie.h=120;
+  zombie.speed=2+level*0.3;
+  zombie.health=1;
+ }
 }
+spawnZombie();
 
-/* Controls */
+/* CONTROLS */
 up.onclick=()=>player.y-=20;
 down.onclick=()=>player.y+=20;
 left.onclick=()=>player.x-=20;
@@ -144,47 +132,64 @@ right.onclick=()=>player.x+=20;
 
 fire.onclick=()=>{
  fireSound.play();
- bullets.push({x:player.x+70,y:player.y+40,speed:10});
+ let g=guns[gunIndex];
+
+ for(let i=0;i<g.spread;i++){
+  bullets.push({
+   x:player.x+player.w,
+   y:player.y+player.h/2+(i*10),
+   speed:g.speed,
+   damage:g.damage
+  });
+ }
 };
 
-/* Loop */
-function gameLoop(){
- if(!gameRunning) return;
+gun.onclick=()=>{
+ gunIndex=(gunIndex+1)%guns.length;
+ document.getElementById("gunName").innerText=guns[gunIndex].name;
+};
 
+/* LOOP */
+function loop(){
  ctx.clearRect(0,0,canvas.width,canvas.height);
  ctx.drawImage(bg,0,0,canvas.width,canvas.height);
  ctx.drawImage(playerImg,player.x,player.y,player.w,player.h);
 
+ zombie.x-=zombie.speed;
+ ctx.drawImage(
+  zombie.boss?bossImg:zombieImg,
+  zombie.x,zombie.y,zombie.w,zombie.h
+ );
+
  bullets.forEach((b,i)=>{
   b.x+=b.speed;
-  ctx.drawImage(bulletImg,b.x,b.y,60,30);
+  ctx.drawImage(bulletImg,b.x,b.y,50,25);
 
-  if(b.x>zombie.x && b.y>zombie.y && b.y<zombie.y+60){
+  if(
+   b.x>zombie.x &&
+   b.x<zombie.x+zombie.w &&
+   b.y>zombie.y &&
+   b.y<zombie.y+zombie.h
+  ){
    hitSound.play();
    bullets.splice(i,1);
-   score++;
-   document.getElementById("score").innerText=score;
-   zombie.x=canvas.width;
-   zombie.y=Math.random()*(canvas.height-100);
+   zombie.health-=b.damage;
+
+   if(zombie.health<=0){
+    score++;
+    if(score%5===0) level++;
+    document.getElementById("score").innerText=score;
+    document.getElementById("level").innerText=level;
+    spawnZombie();
+   }
   }
  });
 
- zombie.x-=zombie.speed;
- ctx.drawImage(zombieImg,zombie.x,zombie.y,zombie.w,zombie.h);
-
- if(zombie.x<0){
-  health-=10;
-  zombie.x=canvas.width;
-  document.getElementById("health").style.width=health+"%";
- }
-
- if(health<=0){
-  alert("Game Over");
-  location.reload();
- }
-
- requestAnimationFrame(gameLoop);
+ requestAnimationFrame(loop);
 }
+
+document.body.onclick=()=>bgMusic.play();
+loop();
 </script>
 
 </body>
