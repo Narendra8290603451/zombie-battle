@@ -157,7 +157,7 @@ function gameLoop(){
 
  bullets.forEach((b,i)=>{
   b.x+=b.speed;
-  ctx.drawImage(bulletImg,b.x,b.y,40,20);
+  ctx.drawImage(bulletImg,b.x,b.y,60,30);
 
   if(b.x>zombie.x && b.y>zombie.y && b.y<zombie.y+60){
    hitSound.play();
