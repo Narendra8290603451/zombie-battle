@@ -1,8 +1,10 @@
+
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,height=device-height,initial-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
 <title>Zombie Battle</title>
 
 <style>
@@ -11,191 +13,204 @@ html,body{
  padding:0;
  overflow:hidden;
  background:black;
-}
-canvas{
- display:block;
  touch-action:none;
 }
-#ui{
+canvas{display:block}
+
+/* Joystick */
+#joystick{
  position:fixed;
- top:5px;
- width:100%;
- color:white;
- text-align:center;
- font-family:Arial;
- z-index:10;
+ left:20px;
+ bottom:40px;
+ width:140px;
+ height:140px;
+ background:rgba(0,255,0,0.2);
+ border-radius:50%;
 }
-.btn{
- position:fixed;
+#stick{
  width:60px;
  height:60px;
- background:#00ff99;
- color:black;
- font-size:22px;
- border-radius:10px;
- display:flex;
- align-items:center;
- justify-content:center;
- user-select:none;
+ background:#00ff88;
+ border-radius:50%;
+ position:absolute;
+ left:40px;
+ top:40px;
 }
-#up{left:20px;bottom:140px}
-#down{left:20px;bottom:20px}
-#fire{right:20px;bottom:60px;background:red;color:white}
+
+/* Fire button */
+#fire{
+ position:fixed;
+ right:30px;
+ bottom:60px;
+ width:90px;
+ height:90px;
+ border-radius:50%;
+ background:red;
+ border:none;
+ font-size:30px;
+ color:white;
+}
 </style>
 </head>
 
 <body>
 
-<div id="ui">Gun: Pistol | Level: 1 | Score: 0</div>
 <canvas id="game"></canvas>
 
-<div id="up" class="btn">↑</div>
-<div id="down" class="btn">↓</div>
-<div id="fire" class="btn">🔥</div>
+<div id="joystick"><div id="stick"></div></div>
+<button id="fire">🔥</button>
+
+<audio id="bgm" src="bg.mp3" loop></audio>
+<audio id="fireS" src="fire.mp3"></audio>
+<audio id="hitS" src="hit.mp3"></audio>
 
 <script>
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 
-function resize(){
- canvas.width=innerWidth;
- canvas.height=innerHeight;
-}
-resize();
-addEventListener("resize",resize);
+canvas.width=innerWidth;
+canvas.height=innerHeight;
 
-// 🔊 Sounds
-const bgm=new Audio("bg.mp3"); bgm.loop=true; bgm.volume=0.4;
-const fireSound=new Audio("fire.mp3");
-const hitSound=new Audio("hit.mp3");
-
-// 🖼 Images
+/* Images */
 const bg=new Image(); bg.src="bg.png";
 const playerImg=new Image(); playerImg.src="player.png";
 const zombieImg=new Image(); zombieImg.src="zombie.png";
 const bossImg=new Image(); bossImg.src="boss.png";
 const bulletImg=new Image(); bulletImg.src="bullet.png";
 
-// 🎮 Game data
-let worldY=0,score=0,level=1;
-const player={w:90,h:110,x:0,y:0};
-const bullets=[];
-const zombies=[];
+/* Sounds */
+const bgm=document.getElementById("bgm");
+const fireS=document.getElementById("fireS");
+const hitS=document.getElementById("hitS");
+bgm.volume=0.4;
+bgm.play();
+
+/* Player */
+let player={x:200,y:canvas.height-200,w:70,h:70,speed:3};
+
+/* Aim */
+let aimX=canvas.width, aimY=canvas.height/2;
+
+/* Zombies */
+let zombies=[];
 let boss=null;
 
-// 🔫 Guns
-const guns=[
- {name:"Pistol",speed:8,damage:1},
- {name:"Rifle",speed:12,damage:2},
- {name:"Shotgun",speed:6,damage:3}
-];
-let gunIndex=0;
+/* Bullets */
+let bullets=[];
 
-// 🎯 Controls
-let up=false,down=false;
+/* Joystick */
+let joy=document.getElementById("joystick");
+let stick=document.getElementById("stick");
+let joyX=0,joyY=0,active=false;
 
-document.getElementById("up").ontouchstart=()=>up=true;
-document.getElementById("up").ontouchend=()=>up=false;
-document.getElementById("down").ontouchstart=()=>down=true;
-document.getElementById("down").ontouchend=()=>down=false;
+joy.addEventListener("touchstart",()=>active=true);
+joy.addEventListener("touchend",()=>{
+ active=false; joyX=joyY=0;
+ stick.style.left="40px"; stick.style.top="40px";
+});
+joy.addEventListener("touchmove",e=>{
+ e.preventDefault();
+ let r=joy.getBoundingClientRect();
+ let x=e.touches[0].clientX-r.left-70;
+ let y=e.touches[0].clientY-r.top-70;
+ let d=Math.min(40,Math.hypot(x,y));
+ let a=Math.atan2(y,x);
+ joyX=Math.cos(a)*d;
+ joyY=Math.sin(a)*d;
+ stick.style.left=40+joyX+"px";
+ stick.style.top=40+joyY+"px";
+});
 
-document.getElementById("fire").ontouchstart=shoot;
+/* Fire */
+document.getElementById("fire").ontouchstart=()=>{
+ fireS.currentTime=0; fireS.play();
+ shoot();
+};
 
-document.addEventListener("click",()=>bgm.play(),{once:true});
+/* Aim swipe */
+canvas.addEventListener("touchmove",e=>{
+ if(e.touches[0].clientX>innerWidth/2){
+  aimX=e.touches[0].clientX;
+  aimY=e.touches[0].clientY;
+ }
+});
 
-// 🔫 Shoot
+/* Functions */
 function shoot(){
- fireSound.currentTime=0;
- fireSound.play();
+ let dx=aimX-player.x;
+ let dy=aimY-player.y;
+ let l=Math.hypot(dx,dy);
  bullets.push({
-  x:player.x+player.w/2-20,
-  y:player.y,
-  w:40,h:40,
-  speed:guns[gunIndex].speed,
-  dmg:guns[gunIndex].damage
+  x:player.x+player.w/2,
+  y:player.y+player.h/2,
+  dx:dx/l*8,
+  dy:dy/l*8
  });
 }
 
-// 🧟 Spawn zombies
 function spawnZombie(){
  zombies.push({
-  x:Math.random()*(canvas.width-80),
-  y:-worldY-100,
-  w:90,h:110,
-  hp:2+level
+  x:canvas.width+Math.random()*300,
+  y:canvas.height-180,
+  w:70,h:70,hp:2
  });
 }
 
-// 👹 Boss
 function spawnBoss(){
  boss={
-  x:canvas.width/2-150,
-  y:-worldY-400,
-  w:300,h:300,
-  hp:30+level*10
+  x:canvas.width+200,
+  y:canvas.height-220,
+  w:120,h:120,hp:20
  };
 }
 
-// 🔁 Loop
+/* Loop */
+setInterval(spawnZombie,2000);
+setTimeout(spawnBoss,15000);
+
 function update(){
- ctx.clearRect(0,0,canvas.width,canvas.height);
+ player.x+=joyX*0.15;
+ player.y+=joyY*0.15;
 
- // scroll
- if(up) worldY+=4;
- if(down) worldY-=4;
+ bullets.forEach(b=>{
+  b.x+=b.dx;
+  b.y+=b.dy;
+ });
 
- // background
- ctx.drawImage(bg,0,worldY%canvas.height,canvas.width,canvas.height);
- ctx.drawImage(bg,0,worldY%canvas.height-canvas.height,canvas.width,canvas.height);
+ zombies.forEach(z=>z.x-=1.5);
+ if(boss) boss.x-=1;
 
- // player fixed
- player.x=canvas.width/2-player.w/2;
- player.y=canvas.height-player.h-40;
- ctx.drawImage(playerImg,player.x,player.y,player.w,player.h);
-
- // bullets
- bullets.forEach((b,i)=>{
-  b.y-=b.speed;
-  ctx.drawImage(bulletImg,b.x,b.y,b.w,b.h);
+ /* Collision */
+ bullets.forEach((b,bi)=>{
   zombies.forEach((z,zi)=>{
-   if(b.x<z.x+z.w && b.x+b.w>z.x && b.y<z.y+worldY+z.h && b.y+b.h>z.y+worldY){
-    z.hp-=b.dmg;
-    bullets.splice(i,1);
-    hitSound.play();
-    if(z.hp<=0){zombies.splice(zi,1);score+=10;}
+   if(b.x<z.x+z.w&&b.x+20>z.x&&b.y<z.y+z.h&&b.y+20>z.y){
+    z.hp--; bullets.splice(bi,1);
+    hitS.play();
+    if(z.hp<=0) zombies.splice(zi,1);
    }
   });
-  if(boss && b.x<boss.x+boss.w && b.x+b.w>boss.x && b.y<boss.y+worldY+boss.h && b.y+b.h>boss.y+worldY){
-   boss.hp-=b.dmg;
-   bullets.splice(i,1);
-   hitSound.play();
-   if(boss.hp<=0){boss=null;level++;gunIndex=(gunIndex+1)%guns.length;}
+  if(boss && b.x<boss.x+boss.w&&b.x+20>boss.x&&b.y<boss.y+boss.h){
+   boss.hp--; bullets.splice(bi,1); hitS.play();
+   if(boss.hp<=0) boss=null;
   }
  });
-
- // zombies
- zombies.forEach(z=>{
-  ctx.drawImage(zombieImg,z.x,z.y+worldY,z.w,z.h);
- });
-
- // boss
- if(boss){
-  ctx.drawImage(bossImg,boss.x,boss.y+worldY,boss.w,boss.h);
- }
-
- document.getElementById("ui").innerText=
- `Gun: ${guns[gunIndex].name} | Level: ${level} | Score: ${score}`;
-
- requestAnimationFrame(update);
 }
 
-// spawn logic
-setInterval(spawnZombie,1200);
-setInterval(()=>{if(level%3==0 && !boss) spawnBoss();},3000);
+function draw(){
+ ctx.drawImage(bg,0,0,canvas.width,canvas.height);
+ ctx.drawImage(playerImg,player.x,player.y,player.w,player.h);
+ zombies.forEach(z=>ctx.drawImage(zombieImg,z.x,z.y,z.w,z.h));
+ if(boss) ctx.drawImage(bossImg,boss.x,boss.y,boss.w,boss.h);
+ bullets.forEach(b=>ctx.drawImage(bulletImg,b.x,b.y,20,20));
+}
 
-update();
-screen.orientation?.lock("landscape").catch(()=>{});
+function loop(){
+ update();
+ draw();
+ requestAnimationFrame(loop);
+}
+loop();
 </script>
-
 </body>
 </html>
+  
